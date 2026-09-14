@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#141414">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<title>Éditeur — sans titre.txt</title>
+<style>
+  :root, [data-theme="light"]{
+    --ink:#141414;
+    --paper:#ffffff;
+    --line:#ececec;
+    --line-strong:#dcdcdc;
+    --muted:#9a9a9a;
+    --hover:#f4f4f4;
+    --placeholder:#b8b8b8;
+    --shadow:0 8px 24px rgba(0,0,0,.10);
+  }
+  [data-theme="dark"]{
+    --ink:#f0f0f0;
+    --paper:#121212;
+    --line:#2a2a2a;
+    --line-strong:#3a3a3a;
+    --muted:#8c8c8c;
+    --hover:#1e1e1e;
+    --placeholder:#5c5c5c;
+    --shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  [data-theme="sepia"]{
+    --ink:#3b2f24;
+    --paper:#f4ecd8;
+    --line:#e3d6b8;
+    --line-strong:#d3c299;
+    --muted:#8a7a5c;
+    --hover:#ece0c4;
+    --placeholder:#b3a37e;
+    --shadow:0 8px 24px rgba(59,47,36,.15);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    -webkit-font-smoothing:antialiased;
+    transition:background-color .15s ease, color .15s ease;
+  }
+  .app{display:flex;flex-direction:column;height:100vh;}
+
+  /* Barre d'outils — grille pour un vrai centrage du nom de fichier */
+  .toolbar{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    gap:16px;
+    padding:12px 20px;
+    border-bottom:1px solid var(--line);
+    background:var(--paper);
+    position:relative;
+    z-index:10;
+  }
+  .toolbar-left{justify-self:start;display:flex;align-items:center;gap:4px;}
+  .settings-wrap{justify-self:end;position:relative;}
+
+  .filename-group{
+    justify-self:center;
+    display:flex;align-items:center;gap:8px;
+    min-width:0;
+  }
+  #filename{
+    font-size:13px;font-weight:500;color:var(--ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw;
+    cursor:text;padding:3px 6px;border-radius:5px;
+  }
+  #filename:hover{background:var(--hover);}
+  .filename-input{
+    font:inherit;font-size:13px;font-weight:500;color:var(--ink);
+    border:none;border-bottom:1px solid var(--ink);background:transparent;
+    padding:3px 4px;text-align:center;min-width:100px;
+  }
+  .filename-input:focus{outline:none;}
+
+  .dirty-dot{
+    display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:var(--ink);opacity:0;transition:opacity .15s ease;flex:none;
+  }
+  .dirty-dot.visible{opacity:1;}
+
+  button.ghost{
+    display:inline-flex;align-items:center;gap:6px;
+    font:inherit;font-size:13px;color:var(--ink);
+    background:transparent;border:none;padding:7px 11px;
+    border-radius:7px;cursor:pointer;
+    transition:background-color .15s ease;
+  }
+  button.ghost:hover{background:var(--hover);}
+  button.ghost svg{width:16px;height:16px;flex:none;}
+  button.icon-only{width:34px;height:34px;padding:0;justify-content:center;}
+
+  button.ghost:focus-visible, select:focus-visible, textarea:focus-visible,
+  .switch input:focus-visible + .switch-track{
+    outline:2px solid var(--ink);outline-offset:2px;
+  }
+
+  /* Panneau de réglages */
+  .settings-panel{
+    position:absolute;top:calc(100% + 8px);right:0;
+    width:250px;background:var(--paper);border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--shadow);padding:14px;
+    display:flex;flex-direction:column;gap:14px;
+  }
+  .settings-panel[hidden]{display:none;}
+  .settings-row{display:flex;align-items:center;justify-content:space-between;gap:14px;}
+  label.field-label{font-size:12px;color:var(--muted);}
+
+  select.select-ghost{
+    font:inherit;font-size:13px;color:var(--ink);
+    background:transparent;border:none;border-bottom:1px solid var(--line-strong);
+    padding:5px 2px;cursor:pointer;max-width:130px;
+  }
+
+  .stepper{display:flex;align-items:center;gap:2px;}
+  .stepper button{
+    width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+    font-size:15px;line-height:1;color:var(--ink);background:transparent;border:none;
+    border-radius:6px;cursor:pointer;transition:background-color .15s ease;
+  }
+  .stepper button:hover{background:var(--hover);}
+  .stepper span{font-size:13px;color:var(--ink);min-width:20px;text-align:center;}
+
+  .switch{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+  .switch input{position:absolute;opacity:0;width:1px;height:1px;}
+  .switch-track{
+    position:relative;width:32px;height:18px;border-radius:999px;
+    background:var(--line-strong);transition:background-color .15s ease;flex:none;
+  }
+  .switch-thumb{
+    position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s ease;
+  }
+  .switch input:checked + .switch-track{background:var(--ink);}
+  .switch input:checked + .switch-track .switch-thumb{transform:translateX(14px);}
+
+  .banner{
+    padding:10px 20px;font-size:12px;line-height:1.5;color:var(--ink);
+    border-bottom:1px solid var(--line);background:var(--hover);
+  }
+
+  main{flex:1;display:flex;overflow:hidden;}
+  .editor-wrap{flex:1;display:flex;overflow:hidden;position:relative;}
+
+  #gutter{width:18px;flex:none;position:relative;overflow:hidden;}
+  #gutter-inner{position:relative;}
+  .gutter-dot{
+    position:absolute;left:6px;width:6px;height:6px;border-radius:50%;
+    background:var(--ink);opacity:.65;
+  }
+
+  #editor{
+    flex:1;width:100%;
+    border:none;outline:none;resize:none;
+    padding:15px;
+    font-size:16px;line-height:1.75;
+    color:var(--ink);background:transparent;
+    white-space:pre-wrap;word-wrap:break-word;
+  }
+  #editor.no-wrap{white-space:pre;overflow-x:auto;}
+  #editor::placeholder{color:var(--placeholder);font-style:italic;}
+
+  #mirror{
+    position:absolute;top:0;left:-9999px;visibility:hidden;
+    white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word;margin:0;
+  }
+
+  .statusbar{
+    display:flex;justify-content:space-between;gap:12px;
+    padding:8px 20px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--muted);
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="toolbar">
+      <div class="group toolbar-left">
+        <button id="btn-new" class="ghost" title="Nouveau (Ctrl+N)">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 2.5h6l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1Z"/>
+            <path d="M11 2.5v4h4"/>
+          </svg>
+          Nouveau
+        </button>
+        <button id="btn-open" class="ghost" title="Ouvrir (Ctrl+O)">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2.5 5.5a1 1 0 0 1 1-1h4l1.5 2h7a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-12.5a1 1 0 0 1-1-1v-10Z"/>
+          </svg>
+          Ouvrir…
+        </button>
+        <button id="btn-save" class="ghost" title="Enregistrer (Ctrl+S)">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 12.5v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3"/>
+            <path d="M10 2.5v9"/>
+            <path d="M6.5 8.5 10 12l3.5-3.5"/>
+          </svg>
+          Enregistrer
+        </button>
+      </div>
+
+      <div class="filename-group">
+        <span id="filename" tabindex="0" role="button" title="Cliquer pour renommer">Sans titre.txt</span>
+        <input id="filename-input" class="filename-input" type="text" hidden>
+        <span id="dirty-dot" class="dirty-dot" title="Modifications non enregistrées"></span>
+      </div>
+
+      <div class="group settings-wrap">
+        <button id="btn-settings" class="ghost icon-only" title="Réglages" aria-haspopup="true" aria-expanded="false" aria-controls="settings-panel">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="10" cy="10" r="2.6"/>
+            <path d="M10 2.7v2.4M10 14.9v2.4M17.3 10h-2.4M5.1 10H2.7M15.1 4.9l-1.7 1.7M6.6 13.4l-1.7 1.7M15.1 15.1l-1.7-1.7M6.6 6.6 4.9 4.9"/>
+          </svg>
+        </button>
+        <div id="settings-panel" class="settings-panel" role="group" aria-label="Réglages" hidden>
+          <div class="settings-row">
+            <label class="field-label" for="font-family">Police</label>
+            <select id="font-family" class="select-ghost">
+              <option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Helvetica, Arial, sans-serif" selected>Sans (système)</option>
+              <option value="Georgia, 'Times New Roman', Times, serif">Serif (Georgia)</option>
+              <option value="'Times New Roman', Times, serif">Times New Roman</option>
+              <option value="Arial, Helvetica, sans-serif">Arial</option>
+              <option value="Verdana, Geneva, sans-serif">Verdana</option>
+              <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+              <option value="Garamond, 'Times New Roman', serif">Garamond</option>
+              <option value="'Courier New', Courier, monospace">Monospace (Courier New)</option>
+              <option value="Consolas, Menlo, Monaco, monospace">Monospace (Consolas)</option>
+              <option value="'Comic Sans MS', 'Comic Sans', cursive">Comic Sans MS</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label class="field-label">Taille</label>
+            <div class="stepper" role="group" aria-label="Taille de police">
+              <button id="font-dec" aria-label="Diminuer la taille de police">–</button>
+              <span id="font-size-value">16</span>
+              <button id="font-inc" aria-label="Augmenter la taille de police">+</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label class="field-label" for="wrap-toggle">Retour à la ligne</label>
+            <label class="switch">
+              <input type="checkbox" id="wrap-toggle" checked>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <label class="field-label" for="autosave-toggle">Sauvegarde auto.</label>
+            <label class="switch">
+              <input type="checkbox" id="autosave-toggle">
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <label class="field-label" for="theme-select">Thème</label>
+            <select id="theme-select" class="select-ghost">
+              <option value="system" selected>Système</option>
+              <option value="light">Clair</option>
+              <option value="dark">Sombre</option>
+              <option value="sepia">Sépia</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div id="compat-banner" class="banner" hidden></div>
+
+    <main>
+      <div class="editor-wrap">
+        <div id="gutter" aria-hidden="true"><div id="gutter-inner"></div></div>
+        <textarea id="editor" spellcheck="false" placeholder="Ouvrez un fichier ou commencez à écrire…"></textarea>
+        <div id="mirror" aria-hidden="true"></div>
+      </div>
+    </main>
+
+    <footer class="statusbar">
+      <span id="status">Prêt</span>
+      <span id="counts">0 mot · 0 caractère</span>
+    </footer>
+  </div>
+
+  <input type="file" id="file-input" hidden accept=".txt,.md,.csv,.log,.js,.json,.css,.html,.xml,.ini,.yaml,.yml,text/plain">
+
+<script>
+(function(){
+  const editor          = document.getElementById('editor');
+  const btnNew           = document.getElementById('btn-new');
+  const btnOpen          = document.getElementById('btn-open');
+  const btnSave          = document.getElementById('btn-save');
+  const btnSettings      = document.getElementById('btn-settings');
+  const settingsPanel    = document.getElementById('settings-panel');
+  const settingsWrap     = document.querySelector('.settings-wrap');
+  const wrapToggle       = document.getElementById('wrap-toggle');
+  const autosaveToggle   = document.getElementById('autosave-toggle');
+  const fontFamilySel    = document.getElementById('font-family');
+  const btnFontDec       = document.getElementById('font-dec');
+  const btnFontInc       = document.getElementById('font-inc');
+  const fontSizeValue    = document.getElementById('font-size-value');
+  const themeSelect      = document.getElementById('theme-select');
+  const filenameEl       = document.getElementById('filename');
+  const filenameInput    = document.getElementById('filename-input');
+  const dirtyDot         = document.getElementById('dirty-dot');
+  const statusEl         = document.getElementById('status');
+  const countsEl         = document.getElementById('counts');
+  const compatBanner     = document.getElementById('compat-banner');
+  const fileInput        = document.getElementById('file-input');
+  const gutter           = document.getElementById('gutter');
+  const gutterInner      = document.getElementById('gutter-inner');
+  const mirror           = document.getElementById('mirror');
+
+  const supportsFSA = 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
+  const prefersDarkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+
+  const state = {
+    handle: null,
+    fileName: 'Sans titre.txt',
+    baseExt: '.txt',
+    dirty: false,
+    wrap: true,
+    autosave: false,
+    fontSize: 16,
+    themeMode: 'system',
+    saveTimeout: null,
+    savedContent: ''
+  };
+
+  function nowStr(){
+    return new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }
+
+  function setStatus(msg){ statusEl.textContent = msg; }
+
+  function setDirty(v){
+    state.dirty = v;
+    dirtyDot.classList.toggle('visible', v);
+  }
+
+  function updateCounts(){
+    const text = editor.value;
+    const chars = text.length;
+    const trimmed = text.trim();
+    const words = trimmed.length ? trimmed.split(/\s+/).length : 0;
+    countsEl.textContent = `${words} mot${words===1?'':'s'} · ${chars} caractère${chars===1?'':'s'}`;
+  }
+
+  function getExt(name){
+    const m = /\.[^.\/\\]+$/.exec(name);
+    return m ? m[0] : '';
+  }
+
+  /* ---------- Gouttière des lignes non enregistrées ---------- */
+  function syncMirrorStyle(){
+    const cs = getComputedStyle(editor);
+    mirror.style.fontFamily = cs.fontFamily;
+    mirror.style.fontSize = cs.fontSize;
+    mirror.style.lineHeight = cs.lineHeight;
+    mirror.style.letterSpacing = cs.letterSpacing;
+    mirror.style.padding = cs.padding;
+    mirror.style.border = cs.border;
+    mirror.style.boxSizing = cs.boxSizing;
+    mirror.style.width = editor.clientWidth + 'px';
+    mirror.style.whiteSpace = editor.classList.contains('no-wrap') ? 'pre' : 'pre-wrap';
+  }
+
+  let gutterRAF = null;
+  function scheduleGutterRebuild(){
+    if (gutterRAF) cancelAnimationFrame(gutterRAF);
+    gutterRAF = requestAnimationFrame(rebuildGutter);
+  }
+
+  function rebuildGutter(){
+    const lines = editor.value.split('\n');
+    const savedLines = state.savedContent.split('\n');
+
+    const frag = document.createDocumentFragment();
+    const spans = [];
+    lines.forEach((line)=>{
+      const span = document.createElement('span');
+      span.textContent = line.length ? line : '\u200b';
+      frag.appendChild(span);
+      frag.appendChild(document.createTextNode('\n'));
+      spans.push(span);
+    });
+    mirror.innerHTML = '';
+    mirror.appendChild(frag);
+
+    const lineHeightPx = parseFloat(getComputedStyle(editor).lineHeight) || 24;
+    const dotOffset = Math.max(0, (lineHeightPx - 6) / 2);
+
+    const dotsFrag = document.createDocumentFragment();
+    lines.forEach((line, i)=>{
+      const changed = i >= savedLines.length || line !== savedLines[i];
+      if (changed){
+        const dot = document.createElement('span');
+        dot.className = 'gutter-dot';
+        dot.style.top = (spans[i].offsetTop + dotOffset) + 'px';
+        dotsFrag.appendChild(dot);
+      }
+    });
+    gutterInner.innerHTML = '';
+    gutterInner.appendChild(dotsFrag);
+    positionGutterScroll();
+  }
+
+  function positionGutterScroll(){
+    gutterInner.style.transform = `translateY(${-editor.scrollTop}px)`;
+  }
+  editor.addEventListener('scroll', positionGutterScroll);
+
+  /* ---------- Thème ---------- */
+  function resolveTheme(){
+    if (state.themeMode === 'system') return prefersDarkMedia.matches ? 'dark' : 'light';
+    return state.themeMode;
+  }
+  function applyTheme(){
+    document.documentElement.setAttribute('data-theme', resolveTheme());
+  }
+  themeSelect.addEventListener('change', ()=>{
+    state.themeMode = themeSelect.value;
+    applyTheme();
+  });
+  prefersDarkMedia.addEventListener('change', ()=>{
+    if (state.themeMode === 'system') applyTheme();
+  });
+
+  /* ---------- Panneau de réglages ---------- */
+  function openSettings(){
+    settingsPanel.hidden = false;
+    btnSettings.setAttribute('aria-expanded', 'true');
+  }
+  function closeSettings(){
+    settingsPanel.hidden = true;
+    btnSettings.setAttribute('aria-expanded', 'false');
+  }
+  btnSettings.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if (settingsPanel.hidden) openSettings(); else closeSettings();
+  });
+  document.addEventListener('click', (e)=>{
+    if (!settingsPanel.hidden && !settingsWrap.contains(e.target)) closeSettings();
+  });
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape' && !settingsPanel.hidden) closeSettings();
+  });
+
+  /* ---------- Renommage du titre ---------- */
+  function startRename(){
+    filenameInput.value = state.fileName;
+    filenameEl.hidden = true;
+    filenameInput.hidden = false;
+    filenameInput.focus();
+    filenameInput.select();
+  }
+  function commitRename(){
+    let val = filenameInput.value.trim();
+    if (!val){
+      filenameInput.hidden = true;
+      filenameEl.hidden = false;
+      return;
+    }
+    val = val.replace(/\.$/, '');
+    const ext = getExt(val);
+    if (!ext){
+      val = val + (state.baseExt || '.txt');
+    } else {
+      state.baseExt = ext;
+    }
+    state.fileName = val;
+    filenameEl.textContent = val;
+    document.title = 'Éditeur — ' + val;
+    filenameInput.hidden = true;
+    filenameEl.hidden = false;
+  }
+  filenameEl.addEventListener('click', startRename);
+  filenameEl.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); startRename(); }
+  });
+  filenameInput.addEventListener('blur', commitRename);
+  filenameInput.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter'){ e.preventDefault(); filenameInput.blur(); }
+    else if (e.key === 'Escape'){ filenameInput.value = state.fileName; filenameInput.blur(); }
+  });
+
+  /* ---------- Permissions & ouverture ---------- */
+  async function verifyPermission(handle, readWrite){
+    const opts = {};
+    if (readWrite) opts.mode = 'readwrite';
+    if ((await handle.queryPermission(opts)) === 'granted') return true;
+    if ((await handle.requestPermission(opts)) === 'granted') return true;
+    return false;
+  }
+
+  async function loadHandle(handle){
+    const ok = await verifyPermission(handle, true);
+    if (!ok){ setStatus('Permission refusée'); return; }
+    const file = await handle.getFile();
+    const text = await file.text();
+    state.handle = handle;
+    state.fileName = file.name;
+    state.baseExt = getExt(file.name) || '.txt';
+    editor.value = text;
+    state.savedContent = text;
+    filenameEl.textContent = state.fileName;
+    document.title = 'Éditeur — ' + state.fileName;
+    setDirty(false);
+    updateCounts();
+    syncMirrorStyle();
+    scheduleGutterRebuild();
+    setStatus('Ouvert — Ctrl+S pour enregistrer vos modifications');
+    editor.focus();
+  }
+
+  function loadPlainFile(file, text){
+    state.handle = null;
+    state.fileName = file.name;
+    state.baseExt = getExt(file.name) || '.txt';
+    editor.value = text;
+    state.savedContent = text;
+    filenameEl.textContent = state.fileName;
+    document.title = 'Éditeur — ' + state.fileName;
+    setDirty(false);
+    updateCounts();
+    syncMirrorStyle();
+    scheduleGutterRebuild();
+    setStatus(supportsFSA
+      ? 'Chargé sans lien direct au disque — Ctrl+S créera un nouveau fichier'
+      : 'Fichier chargé — Ctrl+S télécharge vos modifications');
+    editor.focus();
+  }
+
+  async function openFile(){
+    if (supportsFSA){
+      try{
+        const [handle] = await window.showOpenFilePicker({
+          types: [{
+            description: 'Fichiers texte',
+            accept: {'text/plain': ['.txt','.md','.csv','.log','.js','.json','.css','.html','.xml','.ini','.yaml','.yml']}
+          }],
+          excludeAcceptAllOption: false,
+          multiple: false
+        });
+        await loadHandle(handle);
+      }catch(err){
+        if (err.name !== 'AbortError') setStatus('Ouverture impossible');
+      }
+    } else {
+      fileInput.click();
+    }
+  }
+
+  fileInput.addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    const text = await file.text();
+    loadPlainFile(file, text);
+  });
+
+  function newFile(){
+    if (state.dirty && !confirm('Des modifications ne sont pas enregistrées. Créer un nouveau fichier ?')) return;
+    state.handle = null;
+    state.fileName = 'Sans titre.txt';
+    state.baseExt = '.txt';
+    editor.value = '';
+    state.savedContent = '';
+    filenameEl.textContent = state.fileName;
+    document.title = 'Éditeur — sans titre.txt';
+    setDirty(false);
+    updateCounts();
+    scheduleGutterRebuild();
+    setStatus('Prêt');
+    editor.focus();
+  }
+
+  /* ---------- Enregistrement ---------- */
+  function downloadFile(content){
+    const blob = new Blob([content], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (state.fileName && state.fileName !== 'Sans titre.txt') ? state.fileName : 'sans-titre.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    state.savedContent = content;
+    setDirty(false);
+    scheduleGutterRebuild();
+    setStatus('Téléchargé à ' + nowStr());
+  }
+
+  async function saveAs(){
+    const content = editor.value;
+    if (supportsFSA){
+      try{
+        const handle = await window.showSaveFilePicker({
+          suggestedName: state.fileName || 'sans-titre.txt',
+          types: [{description:'Fichier texte', accept:{'text/plain':['.txt']}}]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        state.handle = handle;
+        const file = await handle.getFile();
+        state.fileName = file.name;
+        state.baseExt = getExt(file.name) || '.txt';
+        state.savedContent = content;
+        filenameEl.textContent = state.fileName;
+        document.title = 'Éditeur — ' + state.fileName;
+        setDirty(false);
+        scheduleGutterRebuild();
+        setStatus('Enregistré — Ctrl+S mettra à jour ce fichier');
+      }catch(err){
+        if (err.name !== 'AbortError') setStatus('Enregistrement impossible');
+      }
+    } else {
+      downloadFile(content);
+    }
+  }
+
+  async function writeToDisk(){
+    if (!state.handle) return;
+    try{
+      const ok = await verifyPermission(state.handle, true);
+      if (!ok){ setStatus('Permission d’écriture refusée'); return; }
+      const content = editor.value;
+      const writable = await state.handle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      state.savedContent = content;
+      setDirty(false);
+      scheduleGutterRebuild();
+      setStatus('Enregistré à ' + nowStr());
+    }catch(err){
+      setStatus('Échec de l’enregistrement');
+    }
+  }
+
+  async function saveCurrent(){
+    clearTimeout(state.saveTimeout);
+    if (state.handle) await writeToDisk();
+    else await saveAs();
+  }
+
+  editor.addEventListener('input', ()=>{
+    setDirty(true);
+    updateCounts();
+    scheduleGutterRebuild();
+    if (state.autosave && state.handle){
+      setStatus('Modification…');
+      clearTimeout(state.saveTimeout);
+      state.saveTimeout = setTimeout(writeToDisk, 500);
+    } else {
+      setStatus('Modifications non enregistrées — Ctrl+S pour enregistrer');
+    }
+  });
+
+  fontFamilySel.addEventListener('change', ()=>{
+    editor.style.fontFamily = fontFamilySel.value;
+    syncMirrorStyle();
+    scheduleGutterRebuild();
+  });
+
+  function applyFontSize(){
+    state.fontSize = Math.max(10, Math.min(40, state.fontSize));
+    editor.style.fontSize = state.fontSize + 'px';
+    fontSizeValue.textContent = state.fontSize;
+    syncMirrorStyle();
+    scheduleGutterRebuild();
+  }
+  btnFontDec.addEventListener('click', ()=>{ state.fontSize -= 1; applyFontSize(); });
+  btnFontInc.addEventListener('click', ()=>{ state.fontSize += 1; applyFontSize(); });
+
+  wrapToggle.addEventListener('change', ()=>{
+    state.wrap = wrapToggle.checked;
+    editor.classList.toggle('no-wrap', !state.wrap);
+    editor.setAttribute('wrap', state.wrap ? 'soft' : 'off');
+    syncMirrorStyle();
+    scheduleGutterRebuild();
+  });
+
+  autosaveToggle.addEventListener('change', ()=>{
+    state.autosave = autosaveToggle.checked;
+    if (state.autosave){
+      if (state.handle && state.dirty){ clearTimeout(state.saveTimeout); writeToDisk(); }
+    } else {
+      clearTimeout(state.saveTimeout);
+    }
+  });
+
+  btnNew.addEventListener('click', newFile);
+  btnOpen.addEventListener('click', openFile);
+  btnSave.addEventListener('click', saveCurrent);
+
+  editor.addEventListener('dragover', (e)=> e.preventDefault());
+  editor.addEventListener('drop', async (e)=>{
+    e.preventDefault();
+    const item = e.dataTransfer.items && e.dataTransfer.items[0];
+    if (supportsFSA && item && item.kind === 'file' && item.getAsFileSystemHandle){
+      try{
+        const handle = await item.getAsFileSystemHandle();
+        if (handle.kind === 'file'){ await loadHandle(handle); return; }
+      }catch(err){ /* on retombe sur le mode simple ci-dessous */ }
+    }
+    const file = e.dataTransfer.files[0];
+    if (file){
+      const text = await file.text();
+      loadPlainFile(file, text);
+    }
+  });
+
+  window.addEventListener('resize', ()=>{
+    syncMirrorStyle();
+    scheduleGutterRebuild();
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (!ctrl) return;
+    const k = e.key.toLowerCase();
+    if (k === 'o'){ e.preventDefault(); openFile(); }
+    else if (k === 's'){ e.preventDefault(); saveCurrent(); }
+    else if (k === 'n'){ e.preventDefault(); newFile(); }
+  });
+
+  window.addEventListener('beforeunload', (e)=>{
+    if (state.dirty){
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  function init(){
+    if (!supportsFSA){
+      compatBanner.hidden = false;
+      compatBanner.textContent = 'Ce navigateur ne permet pas l’écriture directe sur le disque. Ctrl+S (ou « Enregistrer ») téléchargera vos modifications à la place. L’enregistrement direct nécessite un navigateur basé sur Chromium (Chrome, Edge, Opera, Brave).';
+    }
+    applyTheme();
+    editor.style.fontFamily = fontFamilySel.value;
+    applyFontSize();
+    editor.setAttribute('wrap', 'soft');
+    updateCounts();
+    syncMirrorStyle();
+    scheduleGutterRebuild();
+    setStatus('Prêt');
+  }
+
+  init();
+})();
+</script>
+
+<script>
+  // Enregistrement du service worker (Workbox) pour le fonctionnement hors ligne.
+  // Nécessite d'être servi en http(s) — ne s'active pas en ouverture directe du fichier.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => { /* pas grave, l'appli fonctionne quand même */ });
+    });
+  }
+</script>
+</body>
+</html>
